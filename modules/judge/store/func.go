@@ -24,6 +24,7 @@ import (
 
 type Function interface {
 	Compute(L *SafeLinkedList) (vs []*model.HistoryData, leftValue float64, isTriggered bool, isEnough bool)
+	GetLimit() int
 }
 
 type MaxFunction struct {
@@ -49,6 +50,9 @@ func (this MaxFunction) Compute(L *SafeLinkedList) (vs []*model.HistoryData, lef
 	leftValue = max
 	isTriggered = checkIsTriggered(leftValue, this.Operator, this.RightValue)
 	return
+}
+func (this MaxFunction) GetLimit() int {
+	return this.Limit
 }
 
 type MinFunction struct {
@@ -76,6 +80,10 @@ func (this MinFunction) Compute(L *SafeLinkedList) (vs []*model.HistoryData, lef
 	return
 }
 
+func (this MinFunction) GetLimit() int {
+	return this.Limit
+}
+
 type AllFunction struct {
 	Function
 	Limit      int
@@ -99,6 +107,10 @@ func (this AllFunction) Compute(L *SafeLinkedList) (vs []*model.HistoryData, lef
 
 	leftValue = vs[0].Value
 	return
+}
+
+func (this AllFunction) GetLimit() int {
+	return this.Limit
 }
 
 type LookupFunction struct {
@@ -130,6 +142,10 @@ func (this LookupFunction) Compute(L *SafeLinkedList) (vs []*model.HistoryData, 
 	return
 }
 
+func (this LookupFunction) GetLimit() int {
+	return this.Limit
+}
+
 type SumFunction struct {
 	Function
 	Limit      int
@@ -153,6 +169,10 @@ func (this SumFunction) Compute(L *SafeLinkedList) (vs []*model.HistoryData, lef
 	return
 }
 
+func (this SumFunction) GetLimit() int {
+	return this.Limit
+}
+
 type AvgFunction struct {
 	Function
 	Limit      int
@@ -174,6 +194,10 @@ func (this AvgFunction) Compute(L *SafeLinkedList) (vs []*model.HistoryData, lef
 	leftValue = sum / float64(this.Limit)
 	isTriggered = checkIsTriggered(leftValue, this.Operator, this.RightValue)
 	return
+}
+
+func (this AvgFunction) GetLimit() int {
+	return this.Limit
 }
 
 type DiffFunction struct {
@@ -212,6 +236,10 @@ func (this DiffFunction) Compute(L *SafeLinkedList) (vs []*model.HistoryData, le
 	return
 }
 
+func (this DiffFunction) GetLimit() int {
+	return this.Limit
+}
+
 // pdiff(#3)
 type PDiffFunction struct {
 	Function
@@ -247,6 +275,10 @@ func (this PDiffFunction) Compute(L *SafeLinkedList) (vs []*model.HistoryData, l
 	}
 
 	return
+}
+
+func (this PDiffFunction) GetLimit() int {
+	return this.Limit
 }
 
 func atois(s string) (ret []int, err error) {

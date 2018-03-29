@@ -87,6 +87,20 @@ func (this *JudgeItemMap) CleanStale(before int64) {
 }
 
 func (this *JudgeItemMap) PushFrontAndMaintain(key string, val *model.JudgeItem, maxCount int, now int64) {
+	fn_count := RelatedItemMaxCount(val)
+	if fn_count == 0 {
+		/// 该事件目前不需要加到监控序列缓存里
+		/// 原始方案是：只要某个metric下的内容被监听了，则其下的任何一个指标项都会产生一个
+		/// maxCount大小的事件缓存列表。
+		/// 觉得给每个指标都强行分配一个缓存列表没有必要。可以改成按需分配，则可以容忍小部分
+		/// 监控项需要时间跨度很大的情况
+		this.Delete(key)
+		return
+	}
+	if fn_count > maxCount {
+		maxCount = fn_count
+	}
+
 	if linkedList, exists := this.Get(key); exists {
 		needJudge := linkedList.PushFrontAndMaintain(val, maxCount)
 		if needJudge {
