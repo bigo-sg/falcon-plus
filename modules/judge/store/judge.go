@@ -22,6 +22,92 @@ import (
 	"log"
 )
 
+// 判断一个是否指标是否处于告警监控，并返回需要监控的事件的长度。
+// 比如，告警触发条件是all(3) > 0, 我们知道告警触发至少需要3个事件点，所以我们会返回3+1
+// 判断逻辑基本照抄Judge()中的实现
+// 返回值分类
+//  = 0 ：该事件不在监控范围内
+//  > 0 : 该事件需要监控，
+func RelatedItemMaxCount(item *model.JudgeItem) int {
+	max_count_str := GetMaxStrategyCount(item)
+	max_count_exp := GetMaxExpressionCount(item)
+	if max_count_str < max_count_exp {
+		max_count_str = max_count_exp
+	}
+
+	if max_count_str != 0 {
+		max_count_str += 1
+	}
+
+	return max_count_str
+}
+
+func GetMaxStrategyCount(item *model.JudgeItem) int {
+	key := fmt.Sprintf("%s/%s", item.Endpoint, item.Metric)
+	strategyMap := g.StrategyMap.Get()
+	strategies, exists := strategyMap[key]
+	if !exists {
+		return 0
+	}
+
+	// 如果没有任何一个策略用到该事件，应该忽略
+	max_len := 0
+	for _, s := range strategies {
+		// 因为key仅仅是endpoint和metric，所以得到的strategies并不一定是与当前judgeItem相关的
+		// 比如lg-dinp-docker01.bj配置了两个proc.num的策略，一个name=docker，一个name=agent
+		// 所以此处要排除掉一部分
+		for tagKey, tagVal := range s.Tags {
+			if myVal, exists := item.Tags[tagKey]; !exists || myVal != tagVal {
+				continue
+			} else {
+				fn, _ := ParseFuncFromString(s.Func, s.Operator, s.RightValue)
+				limit := fn.GetLimit()
+				if max_len < limit && limit <= 1445 {
+					// 最大只支持1445个事件的序列。
+					// 以每个事件1min上报的间隔计，可以支持1天的跨度
+					max_len = limit
+				}
+			}
+		}
+	}
+
+	return max_len
+
+}
+
+func GetMaxExpressionCount(item *model.JudgeItem) int {
+	keys := buildKeysFromMetricAndTags(item)
+	if len(keys) == 0 {
+		return 0
+	}
+	max_count := 0
+	handledExpression := make(map[int]struct{})
+	expressionMap := g.ExpressionMap.Get()
+	for _, key := range keys {
+		expressions, exists := expressionMap[key]
+		if !exists {
+			continue
+		}
+		related := filterRelatedExpressions(expressions, item)
+		for _, exp := range related {
+			if _, ok := handledExpression[exp.Id]; ok {
+				continue
+			}
+			handledExpression[exp.Id] = struct{}{}
+			fn, err := ParseFuncFromString(exp.Func, exp.Operator, exp.RightValue)
+			if err != nil {
+				continue
+			}
+			limit := fn.GetLimit()
+			if max_count < limit && limit <= 1445 {
+				max_count = limit
+			}
+		}
+	}
+
+	return max_count
+}
+
 func Judge(L *SafeLinkedList, firstItem *model.JudgeItem, now int64) {
 	CheckStrategy(L, firstItem, now)
 	CheckExpression(L, firstItem, now)
